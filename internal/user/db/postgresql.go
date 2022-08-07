@@ -1,1 +1,52 @@
 package userdb
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os/user"
+)
+
+type repository struct {
+	client postgresql.Client
+	logger *logging.Logger
+}
+
+func (r *repository) Create(newUser user.User) (user.User, error) {
+	request := `
+		INSERT INTO users(email, login, password, secret_word) 
+		VALUES ($1, $2, $3) 
+		RETURNING id
+		`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error()) // Прочитать про Tracef
+		return user.User{}, err
+	}
+
+	err = tx.QueryRow(
+		context.Background(),
+		request,
+		newUser.Email,
+		newUser.Login,
+		newUser.Password,
+		newUser.SecretWord).Scan(&newUser.ID)
+
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError) // Прочитать про то, почему тут точка
+			newErr := fmt.Errorf("SQL Error: %s, Detail: %s, Where %s, Code: %s, SQLState: %s",
+				pgErr.Message, pgErr.Detail, pgErr.Where, pgErr.Code, pgErr.SQLState())
+			r.logger.Error(newErr)
+			return user.User{}, newErr
+		}
+		r.logger.Error(err)
+		return user.User{}, err
+	}
+	_ = tx.Commit(context.Background())
+	return newUser, nil
+}
