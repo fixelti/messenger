@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/user"
+	"message/internal/user"
 )
 
 type repository struct {
