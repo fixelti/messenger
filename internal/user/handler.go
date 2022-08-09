@@ -16,7 +16,7 @@ type handler struct {
 }
 
 type IDRequest struct {
-	UserID uint `uri:"user_id" binding:"required",min=1`
+	UserID uint `uri:"user_id" binding:"required,min=1"`
 }
 
 // Разобраться в этом блоке кода
