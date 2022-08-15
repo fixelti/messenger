@@ -14,10 +14,10 @@ type AppConfig struct {
 
 	Storage struct {
 		Host     string `yaml:"host"`
-		Port     string `yaml:"Port"`
-		Username string `yaml:"Username"`
-		Database string `yaml:"Database"`
-		Password string `yaml:"Password"`
+		Port     string `yaml:"port"`
+		Username string `yaml:"username"`
+		Database string `yaml:"database"`
+		Password string `yaml:"password"`
 	} `yaml:"storage"`
 }
 
