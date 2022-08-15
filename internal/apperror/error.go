@@ -4,7 +4,7 @@ import "encoding/json"
 
 var (
 	ErrNotFound = NewAppError(nil, "not found", "", "US-000001")
-	ErrNotAuth  = NewAppError(nil, "not authorization", "US-000002")
+	ErrNotAuth  = NewAppError(nil, "not authorization", "", "US-000002")
 )
 
 type AppError struct {
