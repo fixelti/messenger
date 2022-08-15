@@ -1,4 +1,4 @@
-package apiserver
+package main
 
 import (
 	"context"
@@ -6,11 +6,13 @@ import (
 	"message/internal/config"
 	"message/internal/user"
 	userdb "message/internal/user/db"
+	"message/pkg/client/postgresql"
+	"message/pkg/logging"
 )
 
 func main() {
 	appContext := context.Background()
-	logger := logging.GetLogger
+	logger := logging.GetLogger()
 	router := gin.Default()
 	v1Group := router.Group("/api/v1")
 
@@ -21,5 +23,5 @@ func main() {
 	userController := user.NewHandler(logger, userRepo)
 	userController.Register(v1Group)
 
-	logger.Falalln(router.Run(":8081"))
+	logger.Fatalln(router.Run(":8081"))
 }

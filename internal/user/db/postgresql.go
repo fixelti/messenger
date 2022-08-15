@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgconn"
 	"message/internal/user"
+	"message/pkg/client/postgresql"
+	"message/pkg/logging"
 )
 
 type repository struct {
@@ -49,4 +52,21 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 	}
 	_ = tx.Commit(context.Background())
 	return newUser, nil
+}
+
+func (r *repository) Read(userId uint) (user.User, error) { return user.User{}, nil }
+
+func (r *repository) List(filter user.Filter) (user.Pagination, error) { return user.Pagination{}, nil }
+
+func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, error) {
+	return user.User{}, nil
+}
+
+func (r *repository) Delete(userId uint) error { return nil }
+
+func NewRepository(client postgresql.Client, logger *logging.Logger) user.Repository {
+	return &repository{
+		client: client,
+		logger: logger,
+	}
 }

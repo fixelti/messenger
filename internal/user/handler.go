@@ -3,6 +3,9 @@ package user
 import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"message/internal/apperror"
+	"message/internal/handlers"
+	"message/pkg/logging"
 	"net/http"
 )
 
@@ -19,8 +22,9 @@ type IDRequest struct {
 	UserID uint `uri:"user_id" binding:"required,min=1"`
 }
 
-// Разобраться в этом блоке кода
-func NewHandler(logger *logging.Logger, repository Repository) handler.Handler {
+//TODO: Разобраться в этом блоке кода
+
+func NewHandler(logger *logging.Logger, repository Repository) handlers.Handler {
 	return &handler{
 		logger:     logger,
 		repository: repository,
@@ -54,7 +58,7 @@ func (h *handler) Create(c *gin.Context) error {
 		SecretWord: userDTO.SecretWord,
 	})
 	if err != nil {
-		return apperror.NewAppError(nil, "new app error", "NEW-0000001")
+		return apperror.NewAppError(nil, "new app error", "new app error", "NEW-0000001")
 	}
 
 	c.JSON(http.StatusOK, newUser)
