@@ -31,3 +31,7 @@ func NewClient(ctx context.Context, cfg config.AppConfig) Client {
 	}
 	return conn
 }
+
+func createTables() {
+
+}

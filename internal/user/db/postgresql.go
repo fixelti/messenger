@@ -18,7 +18,7 @@ type repository struct {
 func (r *repository) Create(newUser user.User) (user.User, error) {
 	request := `
 		INSERT INTO users(email, login, password, secret_word) 
-		VALUES ($1, $2, $3) 
+		VALUES ($1, $2, $3, $4) 
 		RETURNING id
 		`
 
