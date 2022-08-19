@@ -125,5 +125,12 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 
 			return &userModel, nil
 		},
+
+		Authorizator: func(data interface{}, c *gin.Context) bool {
+			if _, ok := data.(*user.User); ok {
+				return true
+			}
+			return false
+		},
 	}
 }
