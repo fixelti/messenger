@@ -132,5 +132,30 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 			}
 			return false
 		},
+
+		Unauthorized: func(c *gin.Context, code int, message string) {
+			c.JSON(code, gin.H{
+				"code": code,
+				"message": message,
+			})
+		},
+		TokenHeadName: "Bearer ",
+		TokenLookup: "header: Authorization, query: token, cookie: jwt",
+		TimeFunc: time.Now,
+		SendAuthorization: true,
+	},
+	)
+
+	if err != nil {
+		u.logger.Tracef("Can't wake up JWT Middleware! Error: %s\n", err.Error())
+		return nil
 	}
+
+	errInit := m.MiddlewareInit()
+	if errInit != nil {
+		u.logger.Tracef("Can't init JWT Middleware! Error: %s\n", errInit.Error())
+		return nil
+	}
+
+	return m
 }
