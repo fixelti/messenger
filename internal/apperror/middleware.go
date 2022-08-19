@@ -4,6 +4,7 @@ import (
 	"errors"
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"message/internal/user"
 	"message/pkg/client/postgresql"
 	"message/pkg/logging"
@@ -19,6 +20,7 @@ const (
 type UserMiddleware struct {
 	client postgresql.Client
 	logger *logging.Logger
+	repository user.Repository
 }
 
 type JwtWrapper struct {
@@ -98,6 +100,30 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 			return &user.User{
 				ID: 0,
 			}
+		},
+
+		Authenticator: func(c *gin.Context) (interface{}, error) {
+			var credentials = struct {
+				Login    string `form:"login" json:"login" binding:"required"`
+				Password string `form:"password" json:"password" binding:"required"`
+			}{}
+
+			if err := c.ShouldBind(&credentials); err != nil {
+				return "", jwt.ErrMissingLoginValues
+			}
+
+			var userModel user.User
+			queryUser, _ := u.repository.ReadByLogin(credentials.Login)
+			if queryUser.ID == 0 {
+				return "", jwt.ErrFailedAuthentication
+			}
+
+			err := bcrypt.CompareHashAndPassword([]byte(userModel.Password), []byte(credentials.Password))
+			if err != nil {
+				return "", jwt.ErrFailedAuthentication
+			}
+
+			return &userModel, nil
 		},
 	}
 }

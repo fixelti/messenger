@@ -56,6 +56,42 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 
 func (r *repository) Read(userId uint) (user.User, error) { return user.User{}, nil }
 
+func (r *repository) ReadByLogin(login string) (user.User, error) {
+	var queryUser user.User
+
+	request := `SELECT * FROM users WHERE login = $1;`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return user.User{}, err
+	}
+
+	err = tx.QueryRow(context.Background(), request, login).Scan(queryUser)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return user.User{}, newErr
+		}
+		r.logger.Error(err)
+		return user.User{}, err
+	}
+	_ = tx.Commit(context.Background())
+	return queryUser, nil
+}
+
 func (r *repository) List(filter user.Filter) (user.Pagination, error) { return user.Pagination{}, nil }
 
 func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, error) {
