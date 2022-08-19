@@ -17,8 +17,8 @@ type repository struct {
 
 func (r *repository) Create(newUser user.User) (user.User, error) {
 	request := `
-		INSERT INTO users(email, login, password, secret_word) 
-		VALUES ($1, $2, $3, $4) 
+		INSERT INTO users(email, login, password, secret_word, role) 
+		VALUES ($1, $2, $3, $4, $5) 
 		RETURNING id
 		`
 
@@ -35,7 +35,8 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 		newUser.Email,
 		newUser.Login,
 		newUser.Password,
-		newUser.SecretWord).Scan(&newUser.ID)
+		newUser.SecretWord,
+		newUser.Role).Scan(&newUser.ID)
 
 	if err != nil {
 		_ = tx.Rollback(context.Background())

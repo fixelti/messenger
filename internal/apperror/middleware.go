@@ -14,18 +14,18 @@ import (
 
 const (
 	IdentityJWTKet = "id"
-	RoleJWTKey = "role"
+	RoleJWTKey     = "role"
 )
 
 type UserMiddleware struct {
-	client postgresql.Client
-	logger *logging.Logger
+	client     postgresql.Client
+	logger     *logging.Logger
 	repository user.Repository
 }
 
 type JwtWrapper struct {
-	SecretKey string
-	Issuer string
+	SecretKey       string
+	Issuer          string
 	ExpirationHours int64
 }
 
@@ -63,17 +63,17 @@ func Middleware(handler appHandler) gin.HandlerFunc {
 
 func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 	m, err := jwt.New(&jwt.GinJWTMiddleware{
-		Realm: "messenger",
-		Key: []byte("test"), // TODO: сделать, чтобы ключ брался из конфигов
-		Timeout: time.Minute * 100,
-		MaxRefresh: time.Minute * 1000,
+		Realm:       "messenger",
+		Key:         []byte("test"), // TODO: сделать, чтобы ключ брался из конфигов
+		Timeout:     time.Minute * 100,
+		MaxRefresh:  time.Minute * 1000,
 		IdentityKey: IdentityJWTKet,
-		RefreshResponse: func (c *gin.Context, code int, token string, t time.Time) {
+		RefreshResponse: func(c *gin.Context, code int, token string, t time.Time) {
 
 			c.JSON(http.StatusOK, gin.H{
-				"code": http.StatusOK,
-				"token": token,
-				"expire": t.Format(time.RFC3339),
+				"code":    http.StatusOK,
+				"token":   token,
+				"expire":  t.Format(time.RFC3339),
 				"message": "refresh successfully",
 			})
 		},
@@ -82,7 +82,7 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 			if v, ok := data.(*user.User); ok {
 				return jwt.MapClaims{
 					IdentityJWTKet: v.ID,
-					"role": v.Role
+					"role":         v.Role,
 				}
 			}
 			return jwt.MapClaims{
@@ -135,13 +135,13 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{
-				"code": code,
+				"code":    code,
 				"message": message,
 			})
 		},
-		TokenHeadName: "Bearer ",
-		TokenLookup: "header: Authorization, query: token, cookie: jwt",
-		TimeFunc: time.Now,
+		TokenHeadName:     "Bearer ",
+		TokenLookup:       "header: Authorization, query: token, cookie: jwt",
+		TimeFunc:          time.Now,
 		SendAuthorization: true,
 	},
 	)
