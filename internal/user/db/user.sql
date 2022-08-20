@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS users_banned
 );
 
 INSERT INTO users(id, email, login, password, secret_word, find_vision, add_friend, friends, user_role)
-VALUES(1,'root', 'root', 'root', 'root', false, false, 0, 1);
+VALUES(1,'root', 'rootOleg', '$2a$04$d/HBp21BclQ/FXxCcKILMOg5CEGrHP0.emPTNQIgGurBHtLJcaFnu', 'root', false, false, '{0}', 1);
