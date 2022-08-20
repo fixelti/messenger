@@ -14,8 +14,9 @@ const (
 )
 
 type handler struct {
-	logger     *logging.Logger
-	repository Repository
+	logger         *logging.Logger
+	repository     Repository
+	UserMiddleware apperror.UserMiddleware
 }
 
 type IDRequest struct {
@@ -32,9 +33,11 @@ func NewHandler(logger *logging.Logger, repository Repository) handlers.Handler 
 }
 
 func (h *handler) Register(router *gin.RouterGroup) {
+	jwtMiddleware := h.UserMiddleware.JwtMiddleware()
 	users := router.Group(userURL)
 	{
 		users.POST("", apperror.Middleware(h.Create))
+		users.POST("/signin", jwtMiddleware.LoginHandler)
 		//...//
 	}
 }

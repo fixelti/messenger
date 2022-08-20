@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users
     find_vision boolean DEFAULT false,
     add_friend boolean DEFAULT false,
     friends integer[]
+    role integer
 );
 
 CREATE TABLE IF NOT EXISTS users_banned

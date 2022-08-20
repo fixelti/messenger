@@ -17,3 +17,4 @@
 config.yaml
 docker-compose.yaml
 .idea
+db
