@@ -1,22 +1,36 @@
 package user
 
 import (
+	"fmt"
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"message/internal/apperror"
 	"message/internal/handlers"
 	"message/pkg/logging"
 	"net/http"
+	"os/user"
+	"time"
 )
 
 const (
 	userURL = "/users"
 )
 
+const (
+	IdentityJWTKet = "id"
+	RoleJWTKey     = "role"
+)
+
 type handler struct {
-	logger         *logging.Logger
-	repository     Repository
-	UserMiddleware apperror.UserMiddleware
+	logger     *logging.Logger
+	repository Repository
+}
+
+type JwtWrapper struct {
+	SecretKey       string
+	Issuer          string
+	ExpirationHours int64
 }
 
 type IDRequest struct {
@@ -33,7 +47,7 @@ func NewHandler(logger *logging.Logger, repository Repository) handlers.Handler 
 }
 
 func (h *handler) Register(router *gin.RouterGroup) {
-	jwtMiddleware := h.UserMiddleware.JwtMiddleware()
+	jwtMiddleware := h.SignIn()
 	users := router.Group(userURL)
 	{
 		users.POST("", apperror.Middleware(h.Create))
@@ -59,6 +73,7 @@ func (h *handler) Create(c *gin.Context) error {
 		Login:      userDTO.Login,
 		Password:   string(hashedPassword),
 		SecretWord: userDTO.SecretWord,
+		UserRole:   1,
 	})
 	if err != nil {
 		return apperror.NewAppError(nil, "new app error", "new app error", "NEW-0000001")
@@ -66,4 +81,105 @@ func (h *handler) Create(c *gin.Context) error {
 
 	c.JSON(http.StatusOK, newUser)
 	return nil
+}
+
+func (h *handler) SignIn() *jwt.GinJWTMiddleware {
+	m, err := jwt.New(&jwt.GinJWTMiddleware{
+		Realm:       "messenger",
+		Key:         []byte("test"), // TODO: сделать, чтобы ключ брался из конфигов
+		Timeout:     time.Minute * 100,
+		MaxRefresh:  time.Minute * 1000,
+		IdentityKey: IdentityJWTKet,
+		RefreshResponse: func(c *gin.Context, code int, token string, t time.Time) {
+
+			c.JSON(http.StatusOK, gin.H{
+				"code":    http.StatusOK,
+				"token":   token,
+				"expire":  t.Format(time.RFC3339),
+				"message": "refresh successfully",
+			})
+		},
+
+		PayloadFunc: func(data interface{}) jwt.MapClaims {
+			if v, ok := data.(*User); ok {
+				return jwt.MapClaims{
+					IdentityJWTKet: v.ID,
+					"role":         v.UserRole,
+				}
+			}
+			return jwt.MapClaims{
+				"error": true,
+			}
+		},
+
+		IdentityHandler: func(c *gin.Context) interface{} {
+			claims := jwt.ExtractClaims(c)
+			if v, ok := claims[IdentityJWTKet].(uint); ok {
+				return &User{
+					ID: v,
+				}
+			}
+			return &User{
+				ID: 0,
+			}
+		},
+
+		Authenticator: func(c *gin.Context) (interface{}, error) {
+			var credentials = struct {
+				Login    string `form:"login" json:"login" binding:"required"`
+				Password string `form:"password" json:"password" binding:"required"`
+			}{}
+
+			if err := c.ShouldBind(&credentials); err != nil {
+				return "", jwt.ErrMissingLoginValues
+			}
+
+			queryUser, _ := h.repository.ReadByLogin(credentials.Login)
+			if queryUser.ID == 0 {
+				return "", jwt.ErrFailedAuthentication
+			}
+
+			fmt.Println(queryUser.Password)
+
+			err := bcrypt.CompareHashAndPassword([]byte(queryUser.Password), []byte(credentials.Password))
+			fmt.Println(err)
+			if err != nil {
+				return "", jwt.ErrFailedAuthentication
+			}
+			fmt.Println("work 2")
+			return &queryUser, nil
+		},
+
+		Authorizator: func(data interface{}, c *gin.Context) bool {
+			if _, ok := data.(*user.User); ok {
+				return true
+			}
+			return false
+		},
+
+		Unauthorized: func(c *gin.Context, code int, message string) {
+			c.JSON(code, gin.H{
+				"code":    code,
+				"message": message,
+			})
+		},
+		TokenHeadName:     "Bearer ",
+		TokenLookup:       "header: Authorization, query: token, cookie: jwt",
+		TimeFunc:          time.Now,
+		SendAuthorization: true,
+	},
+	)
+
+	if err != nil {
+		h.logger.Tracef("Can't wake up JWT Middleware! Error: %s\n", err.Error())
+		return nil
+	}
+
+	errInit := m.MiddlewareInit()
+	if errInit != nil {
+		h.logger.Tracef("Can't init JWT Middleware! Error: %s\n", errInit.Error())
+		return nil
+	}
+
+	return m
 }

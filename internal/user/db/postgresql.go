@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/georgysavva/scany/pgxscan"
 	"github.com/jackc/pgconn"
 	"message/internal/user"
 	"message/pkg/client/postgresql"
@@ -17,7 +18,7 @@ type repository struct {
 
 func (r *repository) Create(newUser user.User) (user.User, error) {
 	request := `
-		INSERT INTO users(email, login, password, secret_word, role) 
+		INSERT INTO users(email, login, password, secret_word, user_role) 
 		VALUES ($1, $2, $3, $4, $5) 
 		RETURNING id
 		`
@@ -36,7 +37,7 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 		newUser.Login,
 		newUser.Password,
 		newUser.SecretWord,
-		newUser.Role).Scan(&newUser.ID)
+		newUser.UserRole).Scan(&newUser.ID)
 
 	if err != nil {
 		_ = tx.Rollback(context.Background())
@@ -58,7 +59,7 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 func (r *repository) Read(userId uint) (user.User, error) { return user.User{}, nil }
 
 func (r *repository) ReadByLogin(login string) (user.User, error) {
-	var queryUser user.User
+	var queryUser []*user.User
 
 	request := `SELECT * FROM users WHERE login = $1;`
 
@@ -69,7 +70,7 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 		return user.User{}, err
 	}
 
-	err = tx.QueryRow(context.Background(), request, login).Scan(queryUser)
+	err = pgxscan.Select(context.Background(), r.client, &queryUser, request, login)
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		var pgErr *pgconn.PgError
@@ -90,7 +91,7 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 		return user.User{}, err
 	}
 	_ = tx.Commit(context.Background())
-	return queryUser, nil
+	return *queryUser[0], nil
 }
 
 func (r *repository) List(filter user.Filter) (user.Pagination, error) { return user.Pagination{}, nil }

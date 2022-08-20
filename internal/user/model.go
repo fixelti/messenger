@@ -1,12 +1,19 @@
 package user
 
+import "time"
+
 type User struct {
-	ID         uint   `json:"id"`
-	Login      string `json:"login"`
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	SecretWord string `json:"secret_word"`
-	Role       uint   `json:"role"`
+	ID         uint `json:"id"`
+	CreatedAt  time.Time
+	DeletedAt  *time.Time `sql:"index"`
+	Email      string     `json:"email"`
+	Login      string     `json:"login"`
+	Password   string     `json:"password"`
+	SecretWord string     `json:"secret_word"`
+	FindVision bool       `json:"find_vision"`
+	AddFriend  bool       `json:"add_friend"`
+	Friends    []uint     `json:"friends"`
+	UserRole   uint       `json:"user_role"`
 }
 
 // TODO: возможно надо будет отредактировать эту структуру
@@ -16,7 +23,6 @@ type CreateUserDTO struct {
 	Email      string `json:"email" binding:"required"`
 	Password   string `json:"password" binding:"required"`
 	SecretWord string `json:"secret_word" binding:"required"`
-	Role       uint   `json:"role" binding:"required,min=1"`
 }
 
 type Filter struct {

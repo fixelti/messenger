@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS users
     secret_word varchar(100),
     find_vision boolean DEFAULT false,
     add_friend boolean DEFAULT false,
-    friends integer[]
-    role integer
+    friends integer[],
+    user_role integer
 );
 
 CREATE TABLE IF NOT EXISTS users_banned
@@ -21,3 +21,6 @@ CREATE TABLE IF NOT EXISTS users_banned
     user_id serial,
     banned_user_id serial
 );
+
+INSERT INTO users(id, email, login, password, secret_word, find_vision, add_friend, friends, user_role)
+VALUES(1,'root', 'root', 'root', 'root', false, false, 0, 1);
