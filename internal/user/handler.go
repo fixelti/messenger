@@ -50,15 +50,17 @@ func (h *handler) Register(router *gin.RouterGroup) {
 	jwtMiddleware := h.SignIn()
 	users := router.Group(userURL)
 	{
-		users.POST("", apperror.Middleware(h.Create))
 		users.POST("/signin", jwtMiddleware.LoginHandler)
+		users.Use(jwtMiddleware.MiddlewareFunc())
+		{
+			users.POST("", apperror.Middleware(h.Create))
+		}
 		//...//
 	}
 }
 
 func (h *handler) Create(c *gin.Context) error {
 	var userDTO CreateUserDTO
-
 	if err := c.ShouldBindJSON(&userDTO); err != nil {
 		return err
 	}
@@ -76,10 +78,25 @@ func (h *handler) Create(c *gin.Context) error {
 		UserRole:   1,
 	})
 	if err != nil {
-		return apperror.NewAppError(nil, "new app error", "new app error", "NEW-0000001")
+		return apperror.NewAppError(nil, "internal server error", "don't create user", "USR-0000001")
 	}
 
 	c.JSON(http.StatusOK, newUser)
+	return nil
+}
+
+func (h *handler) Delete(c *gin.Context) error {
+	var userID IDRequest
+	if err := c.ShouldBindUri(&userID);
+		err != nil {
+		return err
+	}
+
+	err := h.repository.Delete(userID.UserID)
+	if err != nil {
+		return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
+	}
+	c.IndentedJSON(http.StatusOK, "Deleted")
 	return nil
 }
 
@@ -146,7 +163,6 @@ func (h *handler) SignIn() *jwt.GinJWTMiddleware {
 			if err != nil {
 				return "", jwt.ErrFailedAuthentication
 			}
-			fmt.Println("work 2")
 			return &queryUser, nil
 		},
 

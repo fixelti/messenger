@@ -100,7 +100,33 @@ func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, err
 	return user.User{}, nil
 }
 
-func (r *repository) Delete(userId uint) error { return nil }
+func (r *repository) Delete(userId uint) error {
+	request := `DELETE FROM users WHERE id = $1 AND deleted_at IS NULL RETURNING id`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return err
+	}
+
+	_, err = tx.Exec(context.Background(), request, userId)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf("SQL Error: %s, Detail: %s, Where %s, Code: %s, SQLState: %s",
+				pgErr.Message, pgErr.Detail, pgErr.Where, pgErr.Code, pgErr.SQLState())
+			r.logger.Error(newErr)
+			return newErr
+		}
+		r.logger.Error(err)
+		return err
+	}
+	_ = tx.Commit(context.Background())
+	return nil
+}
 
 func NewRepository(client postgresql.Client, logger *logging.Logger) user.Repository {
 	return &repository{
