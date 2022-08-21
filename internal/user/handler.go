@@ -9,7 +9,6 @@ import (
 	"message/internal/handlers"
 	"message/pkg/logging"
 	"net/http"
-	"os/user"
 	"time"
 )
 
@@ -54,6 +53,7 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		users.Use(jwtMiddleware.MiddlewareFunc())
 		{
 			users.POST("", apperror.Middleware(h.Create))
+			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
 		}
 		//...//
 	}
@@ -87,8 +87,7 @@ func (h *handler) Create(c *gin.Context) error {
 
 func (h *handler) Delete(c *gin.Context) error {
 	var userID IDRequest
-	if err := c.ShouldBindUri(&userID);
-		err != nil {
+	if err := c.ShouldBindUri(&userID); err != nil {
 		return err
 	}
 
@@ -156,10 +155,7 @@ func (h *handler) SignIn() *jwt.GinJWTMiddleware {
 				return "", jwt.ErrFailedAuthentication
 			}
 
-			fmt.Println(queryUser.Password)
-
 			err := bcrypt.CompareHashAndPassword([]byte(queryUser.Password), []byte(credentials.Password))
-			fmt.Println(err)
 			if err != nil {
 				return "", jwt.ErrFailedAuthentication
 			}
@@ -167,9 +163,10 @@ func (h *handler) SignIn() *jwt.GinJWTMiddleware {
 		},
 
 		Authorizator: func(data interface{}, c *gin.Context) bool {
-			if _, ok := data.(*user.User); ok {
+			if _, ok := data.(*User); ok {
 				return true
 			}
+			fmt.Println(data.(*User))
 			return false
 		},
 

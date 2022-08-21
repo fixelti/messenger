@@ -101,7 +101,7 @@ func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, err
 }
 
 func (r *repository) Delete(userId uint) error {
-	request := `DELETE FROM users WHERE id = $1 AND deleted_at IS NULL RETURNING id`
+	request := `UPDATE users SET deleted_at = current_timestamp WHERE id = $1 AND deleted_at IS NULL RETURNING id`
 
 	tx, err := r.client.Begin(context.Background())
 	if err != nil {
