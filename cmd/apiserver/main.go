@@ -20,7 +20,7 @@ func main() {
 	pgConn := postgresql.NewClient(appContext, *appConfig)
 
 	userRepo := userdb.NewRepository(pgConn, logger)
-	userController := user.NewHandler(logger, userRepo)
+	userController := user.NewHandler(logger, userRepo, pgConn)
 	userController.Register(v1Group)
 
 	logger.Fatalln(router.Run(":8081"))
