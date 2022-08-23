@@ -2,7 +2,6 @@ package apperror
 
 import (
 	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -16,8 +15,6 @@ func Middleware(handler appHandler) gin.HandlerFunc {
 		var ok bool
 
 		err := handler(ctx)
-		fmt.Println(&handler)
-		fmt.Println("ctx: ", handler(ctx))
 		if err != nil {
 			if errors.As(err, &appErr) {
 				if errors.Is(err, ErrNotFound) {

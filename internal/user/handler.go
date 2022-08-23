@@ -1,6 +1,7 @@
 package user
 
 import (
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"message/internal/apperror"
@@ -65,7 +66,7 @@ func (h *handler) Create(c *gin.Context) error {
 		Login:      userDTO.Login,
 		Password:   string(hashedPassword),
 		SecretWord: userDTO.SecretWord,
-		UserRole:   1,
+		UserRole:   3,
 	})
 	if err != nil {
 		return apperror.NewAppError(nil, "internal server error", "don't create user", "USR-0000001")
@@ -76,15 +77,30 @@ func (h *handler) Create(c *gin.Context) error {
 }
 
 func (h *handler) Delete(c *gin.Context) error {
-	var userID IDRequest
-	if err := c.ShouldBindUri(&userID); err != nil {
+	var requestUserID IDRequest
+	claims := jwt.ExtractClaims(c)
+	userID := claims[middleware.IdentityJWTKet].(float64)
+	userRole := claims[middleware.RoleJWTKey].(float64)
+	if err := c.ShouldBindUri(&requestUserID); err != nil {
 		return err
 	}
 
-	err := h.repository.Delete(userID.UserID)
-	if err != nil {
-		return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
+	if uint(userRole) <= middleware.Admin {
+		err := h.repository.Delete(requestUserID.UserID)
+		if err != nil {
+			return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
+		}
+		c.JSON(http.StatusOK, "Deleted")
+
+	} else if uint(userRole) == middleware.User && uint(userID) == requestUserID.UserID {
+		err := h.repository.Delete(requestUserID.UserID)
+		if err != nil {
+			return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
+		}
+		c.JSON(http.StatusOK, "Deleted")
+		
+	} else {
+		return apperror.NewAppError(nil, "not your record", "can't delete user", "URS-0000005")
 	}
-	c.IndentedJSON(http.StatusOK, "Deleted")
 	return nil
 }

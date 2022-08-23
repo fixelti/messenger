@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type User struct {
+type Test struct {
 	ID         uint `json:"id"`
 	CreatedAt  time.Time
 	DeletedAt  *time.Time `sql:"index"`
@@ -28,6 +28,12 @@ type User struct {
 	Friends    []uint     `json:"friends"`
 	UserRole   uint       `json:"user_role"`
 }
+
+const (
+	Root  = 1
+	Admin = 2
+	User  = 3
+)
 
 const (
 	IdentityJWTKet = "id"
@@ -63,7 +69,7 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 		},
 
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
-			if v, ok := data.(*User); ok {
+			if v, ok := data.(Test); ok {
 				return jwt.MapClaims{
 					IdentityJWTKet: v.ID,
 					"role":         v.UserRole,
@@ -77,11 +83,11 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
 			if v, ok := claims[IdentityJWTKet].(uint); ok {
-				return &User{
+				return &Test{
 					ID: v,
 				}
 			}
-			return &User{
+			return &Test{
 				ID: 0,
 			}
 		},
@@ -96,16 +102,10 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 				return "", jwt.ErrMissingLoginValues
 			}
 
-			//queryUser, _ := u.UserMiddleware.ReadByLogin(credentials.Login)
-			//if queryUser.ID == 0 {
-			//	return "", jwt.ErrFailedAuthentication
-			//}
-
-			var queryUser []*User
+			var queryUser []*Test
 
 			request := `SELECT * FROM users WHERE login = $1;`
 
-			fmt.Println("Client: ", u.Client)
 			tx, err := u.Client.Begin(context.Background())
 			if err != nil {
 				_ = tx.Rollback(context.Background())
@@ -143,10 +143,9 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 		},
 
 		Authorizator: func(data interface{}, c *gin.Context) bool {
-			if _, ok := data.(*User); ok {
+			if _, ok := data.(*Test); ok {
 				return true
 			}
-			fmt.Println(data.(*User))
 			return false
 		},
 
@@ -177,4 +176,77 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 	return m
 }
 
-func (u *UserMiddleware) findUser(userID uint) (User, error) { return User{}, nil }
+func (u *UserMiddleware) RootMiddleware(c *gin.Context) {
+	var user Test
+	var err error
+	claims := jwt.ExtractClaims(c)
+	userID := claims[IdentityJWTKet].(float64)
+
+	user, err = u.findUser(uint(userID))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+
+	if user.UserRole != Root {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient rights"})
+		return
+	}
+
+	c.Next()
+}
+
+func (u *UserMiddleware) AdminMiddleware(c *gin.Context) {
+	var user Test
+	var err error
+	claims := jwt.ExtractClaims(c)
+	userID := claims[IdentityJWTKet].(float64)
+
+	user, err = u.findUser(uint(userID))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+
+	if user.UserRole != Root {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient rights"})
+		return
+	}
+
+	c.Next()
+}
+
+func (u *UserMiddleware) findUser(userID uint) (Test, error) {
+	var queryUser []*Test
+	request := `SELECT * FROM users WHERE id = $1;`
+
+	tx, err := u.Client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		u.Logger.Tracef("can't start transaction: %s", err.Error())
+		return Test{}, err
+	}
+
+	err = pgxscan.Select(context.Background(), u.Client, &queryUser, request, userID)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			u.Logger.Error(newErr)
+			return Test{}, newErr
+		}
+		u.Logger.Error(err)
+		return Test{}, err
+	}
+	_ = tx.Commit(context.Background())
+	return *queryUser[0], nil
+}
