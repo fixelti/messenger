@@ -56,7 +56,40 @@ func (r *repository) Create(newUser user.User) (user.User, error) {
 	return newUser, nil
 }
 
-func (r *repository) Read(userId uint) (user.User, error) { return user.User{}, nil }
+func (r *repository) Read(userID uint) (user.User, error) {
+	var queryUser user.User
+	request := `SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return user.User{}, err
+	}
+
+	err = pgxscan.Get(context.Background(), r.client, &queryUser, request, userID)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return user.User{}, newErr
+		}
+		r.logger.Error(err)
+		return user.User{}, err
+	}
+	_ = tx.Commit(context.Background())
+	return queryUser, err
+}
 
 func (r *repository) ReadByLogin(login string) (user.User, error) {
 	var queryUser []*user.User
@@ -101,7 +134,7 @@ func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, err
 }
 
 func (r *repository) Delete(userId uint) error {
-	request := `UPDATE users SET deleted_at = current_timestamp WHERE id = $1 AND deleted_at IS NULL RETURNING id`
+	requestDelete := `UPDATE users SET deleted_at = current_timestamp WHERE id = $1 AND deleted_at IS NULL RETURNING id`
 
 	tx, err := r.client.Begin(context.Background())
 	if err != nil {
@@ -110,7 +143,7 @@ func (r *repository) Delete(userId uint) error {
 		return err
 	}
 
-	_, err = tx.Exec(context.Background(), request, userId)
+	_, err = tx.Exec(context.Background(), requestDelete, userId)
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		var pgErr *pgconn.PgError

@@ -85,6 +85,10 @@ func (h *handler) Delete(c *gin.Context) error {
 		return err
 	}
 
+	if _, err := h.repository.Read(requestUserID.UserID); err != nil {
+		return apperror.NewAppError(nil, "not found", "user not found", "USR-0000005")
+	}
+
 	if uint(userRole) <= middleware.Admin {
 		err := h.repository.Delete(requestUserID.UserID)
 		if err != nil {
@@ -98,7 +102,7 @@ func (h *handler) Delete(c *gin.Context) error {
 			return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
 		}
 		c.JSON(http.StatusOK, "Deleted")
-		
+
 	} else {
 		return apperror.NewAppError(nil, "not your record", "can't delete user", "URS-0000005")
 	}
