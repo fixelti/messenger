@@ -44,6 +44,7 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		users.Use(jwtMiddleware.MiddlewareFunc())
 		{
 			users.POST("", apperror.Middleware(h.Create))
+			users.GET("/:user_id", apperror.Middleware(h.Read))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
 		}
 		//...//
@@ -73,6 +74,31 @@ func (h *handler) Create(c *gin.Context) error {
 	}
 
 	c.JSON(http.StatusOK, newUser)
+	return nil
+}
+
+func (h *handler) Read(c *gin.Context) error {
+	var request IDRequest
+	var user User
+	var err error
+	claims := jwt.ExtractClaims(c)
+	userID := claims[middleware.IdentityJWTKet].(float64)
+	userRole := claims[middleware.RoleJWTKey].(float64)
+	if err := c.ShouldBindUri(&request); err != nil {
+		return err
+	}
+
+	if uint(userRole) <= middleware.Admin {
+		user, err = h.repository.Read(request.UserID)
+		if err != nil {
+			return apperror.NewAppError(nil, "user not found", "user not found", "USR-0000006")
+		}
+
+	} else if uint(userRole) == middleware.User {
+
+	}
+
+	c.JSON(http.StatusOK, user)
 	return nil
 }
 
