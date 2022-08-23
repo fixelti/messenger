@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -9,6 +10,7 @@ import (
 	"message/internal/middleware"
 	"message/pkg/client/postgresql"
 	"message/pkg/logging"
+	"message/pkg/service/checkingForBannedUser"
 	"net/http"
 )
 
@@ -17,9 +19,10 @@ const (
 )
 
 type handler struct {
-	logger         *logging.Logger
-	repository     Repository
-	userMiddleware middleware.UserMiddleware
+	logger          *logging.Logger
+	repository      Repository
+	userMiddleware  middleware.UserMiddleware
+	checkBannedUser checkingForBannedUser.CheckingBannedUser
 }
 
 type IDRequest struct {
@@ -30,9 +33,10 @@ type IDRequest struct {
 
 func NewHandler(logger *logging.Logger, repository Repository, client postgresql.Client) handlers.Handler {
 	return &handler{
-		logger:         logger,
-		repository:     repository,
-		userMiddleware: middleware.UserMiddleware{Client: client, Logger: logger},
+		logger:          logger,
+		repository:      repository,
+		userMiddleware:  middleware.UserMiddleware{Client: client, Logger: logger},
+		checkBannedUser: checkingForBannedUser.CheckingBannedUser{Client: client, Logger: logger},
 	}
 }
 
@@ -95,9 +99,22 @@ func (h *handler) Read(c *gin.Context) error {
 		}
 
 	} else if uint(userRole) == middleware.User {
+		banned, err := h.checkBannedUser.CheckingBannedUser(uint(userID), request.UserID)
+		fmt.Println("err: ", err)
+		if err != nil {
+			return apperror.NewAppError(nil, "server error", "internal server error", "USR-0000007")
+		}
 
+		if !banned {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you are banned from this user"})
+			return nil
+		}
+
+		user, err = h.repository.Read(request.UserID)
+		if err != nil {
+			return apperror.NewAppError(nil, "user not found", "user not found", "USR-0000006")
+		}
 	}
-
 	c.JSON(http.StatusOK, user)
 	return nil
 }

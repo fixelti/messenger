@@ -26,7 +26,8 @@ type bannedUser struct {
 
 func (c *CheckingBannedUser) CheckingBannedUser(userID uint, banUserID uint) (bool, error) {
 	var bannedUser bannedUser
-	request := `SELECT * FROM users_banned WHERE user_id = $1 AND banned_user_id = $2`
+	fmt.Println(userID, banUserID)
+	request := `SELECT * FROM users_banned WHERE user_id = $1 AND banned_user_id = $2 AND deleted_at IS NULL`
 
 	tx, err := c.Client.Begin(context.Background())
 	if err != nil {
@@ -35,7 +36,7 @@ func (c *CheckingBannedUser) CheckingBannedUser(userID uint, banUserID uint) (bo
 		return false, err
 	}
 
-	err = pgxscan.Get(context.Background(), c.Client, &bannedUser, request, userID, banUserID)
+	err = pgxscan.Get(context.Background(), c.Client, &bannedUser, request, banUserID, userID)
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		var pgErr *pgconn.PgError
@@ -52,12 +53,18 @@ func (c *CheckingBannedUser) CheckingBannedUser(userID uint, banUserID uint) (bo
 			c.Logger.Error(newErr)
 			return false, newErr
 		}
-		c.Logger.Error(err)
-		return false, err
+
+		if err.Error() == "no rows in result set" {
+
+		} else {
+			c.Logger.Error(err)
+			return false, err
+		}
 	}
 	_ = tx.Commit(context.Background())
+
 	if bannedUser.ID == 0 {
-		return false, nil
+		return true, nil
 	}
-	return true, nil
+	return false, nil
 }
