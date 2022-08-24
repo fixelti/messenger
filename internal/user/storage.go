@@ -5,6 +5,6 @@ type Repository interface {
 	Read(uint) (User, error)
 	ReadByLogin(string) (User, error)
 	List(Filter) (Pagination, error)
-	Update(uint, User) (User, error)
+	Update(User) (User, error)
 	Delete(uint) error
 }

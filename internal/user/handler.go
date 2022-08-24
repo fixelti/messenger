@@ -1,7 +1,6 @@
 package user
 
 import (
-	"fmt"
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -49,6 +48,7 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		{
 			users.POST("", apperror.Middleware(h.Create))
 			users.GET("/:user_id", apperror.Middleware(h.Read))
+			users.PUT("", apperror.Middleware(h.Update))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
 		}
 		//...//
@@ -100,7 +100,6 @@ func (h *handler) Read(c *gin.Context) error {
 
 	} else if uint(userRole) == middleware.User {
 		banned, err := h.checkBannedUser.CheckingBannedUser(uint(userID), request.UserID)
-		fmt.Println("err: ", err)
 		if err != nil {
 			return apperror.NewAppError(nil, "server error", "internal server error", "USR-0000007")
 		}
@@ -116,6 +115,32 @@ func (h *handler) Read(c *gin.Context) error {
 		}
 	}
 	c.JSON(http.StatusOK, user)
+	return nil
+}
+
+func (h *handler) Update(c *gin.Context) error {
+	claims := jwt.ExtractClaims(c)
+	userID := claims[middleware.IdentityJWTKet].(float64)
+	userRole := claims[middleware.RoleJWTKey].(float64)
+	var updatedUser User
+	var userToUpdate User
+	err := c.ShouldBindJSON(&userToUpdate)
+	if err != nil {
+		return err
+	}
+
+	if uint(userRole) == middleware.Root || (uint(userRole) == middleware.User && uint(userID) == userToUpdate.ID) {
+		updatedUser, err = h.repository.Update(User{
+			ID:         userToUpdate.ID,
+			FindVision: userToUpdate.FindVision,
+			AddFriend:  userToUpdate.AddFriend,
+		})
+		if err != nil {
+			return apperror.NewAppError(nil, "internal server error", "can't update user", "USR-0000008")
+		}
+	}
+
+	c.JSON(http.StatusOK, updatedUser)
 	return nil
 }
 

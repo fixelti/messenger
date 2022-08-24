@@ -129,8 +129,46 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 
 func (r *repository) List(filter user.Filter) (user.Pagination, error) { return user.Pagination{}, nil }
 
-func (r *repository) Update(userId uint, userToUpdate user.User) (user.User, error) {
-	return user.User{}, nil
+func (r *repository) Update(userToUpdate user.User) (user.User, error) {
+	request := `
+			UPDATE users
+			SET find_vision = $1,
+			add_friend = $2
+			WHERE id = $3;`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return user.User{}, err
+	}
+
+	_, err = tx.Exec(context.Background(),
+		request,
+		userToUpdate.FindVision,
+		userToUpdate.AddFriend,
+		userToUpdate.ID)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return user.User{}, newErr
+		}
+		r.logger.Error(err)
+		return user.User{}, err
+	}
+	_ = tx.Commit(context.Background())
+	return userToUpdate, nil
 }
 
 func (r *repository) Delete(userId uint) error {
