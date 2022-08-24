@@ -134,7 +134,8 @@ func (r *repository) Update(userToUpdate user.User) (user.User, error) {
 			UPDATE users
 			SET find_vision = $1,
 			add_friend = $2
-			WHERE id = $3;`
+			WHERE id = $3
+			AND deleted_at IS NULL;`
 
 	tx, err := r.client.Begin(context.Background())
 	if err != nil {

@@ -123,10 +123,14 @@ func (h *handler) Update(c *gin.Context) error {
 	userID := claims[middleware.IdentityJWTKet].(float64)
 	userRole := claims[middleware.RoleJWTKey].(float64)
 	var updatedUser User
-	var userToUpdate User
+	var userToUpdate UpdateUserDTO
 	err := c.ShouldBindJSON(&userToUpdate)
 	if err != nil {
 		return err
+	}
+
+	if _, err := h.repository.Read(userToUpdate.ID); err != nil {
+		return apperror.NewAppError(nil, "not found", "user not found", "USR-0000005")
 	}
 
 	if uint(userRole) == middleware.Root || (uint(userRole) == middleware.User && uint(userID) == userToUpdate.ID) {
@@ -138,8 +142,10 @@ func (h *handler) Update(c *gin.Context) error {
 		if err != nil {
 			return apperror.NewAppError(nil, "internal server error", "can't update user", "USR-0000008")
 		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not your record"})
+		return nil
 	}
-
 	c.JSON(http.StatusOK, updatedUser)
 	return nil
 }

@@ -25,6 +25,12 @@ type CreateUserDTO struct {
 	SecretWord string `json:"secret_word" binding:"required"`
 }
 
+type UpdateUserDTO struct {
+	ID         uint `json:"id"`
+	FindVision bool `json:"find_vision"`
+	AddFriend  bool `json:"add_friend"`
+}
+
 type Filter struct {
 	PageID   int64 `json:"page_id"`
 	PageSize int64 `json:"page_size"`
