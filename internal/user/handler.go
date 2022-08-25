@@ -48,9 +48,12 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		{
 			users.POST("", apperror.Middleware(h.Create))
 			users.GET("/:user_id", apperror.Middleware(h.Read))
-			users.GET("", apperror.Middleware(h.List))
 			users.PUT("", apperror.Middleware(h.Update))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
+			users.Use(h.userMiddleware.AdminMiddleware)
+			{
+				users.GET("", apperror.Middleware(h.List))
+			}
 		}
 		//...//
 	}

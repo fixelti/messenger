@@ -208,7 +208,7 @@ func (u *UserMiddleware) AdminMiddleware(c *gin.Context) {
 		return
 	}
 
-	if user.UserRole != Root {
+	if user.UserRole > Admin {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient rights"})
 		return
 	}

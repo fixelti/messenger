@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/georgysavva/scany/pgxscan"
 	"github.com/jackc/pgconn"
+	"math"
 	"message/internal/user"
 	"message/pkg/client/postgresql"
 	"message/pkg/logging"
@@ -128,9 +129,11 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 }
 
 func (r *repository) List(filter user.Filter) (user.Pagination, error) {
-	request := `SELECT * FROM users LIMIT $1 OFFSET $2;`
+	request := `SELECT * FROM users WHERE deleted_at IS NULL LIMIT $1 OFFSET $2;`
+	totalRecordsRequest := `SELECT * FROM users WHERE deleted_at IS NULL;`
 	var pagination user.Pagination
 	var query []*user.User
+	var totalRecords []*user.User
 
 	offset := (filter.PageID - 1) * filter.PageSize
 	tx, err := r.client.Begin(context.Background())
@@ -160,12 +163,33 @@ func (r *repository) List(filter user.Filter) (user.Pagination, error) {
 		r.logger.Error(err)
 		return user.Pagination{}, err
 	}
+	err = pgxscan.Select(context.Background(), r.client, &totalRecords, totalRecordsRequest)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return user.Pagination{}, newErr
+		}
+		r.logger.Error(err)
+		return user.Pagination{}, err
+	}
+
 	pagination.Records = append(pagination.Records, &query)
 	pagination.PageID = filter.PageID
 	pagination.PageSize = filter.PageSize
-	pagination.TotalRecords = int64(len(query))
-	pagination.TotalCount = pagination.TotalRecords / pagination.PageSize
-
+	pagination.TotalRecords = int64(len(totalRecords))
+	totalCount := float64(pagination.TotalRecords) / float64(pagination.PageSize)
+	pagination.TotalCount = int64(math.Ceil(totalCount))
 	return pagination, nil
 }
 
