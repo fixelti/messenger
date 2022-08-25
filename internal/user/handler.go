@@ -48,6 +48,7 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		{
 			users.POST("", apperror.Middleware(h.Create))
 			users.GET("/:user_id", apperror.Middleware(h.Read))
+			users.GET("", apperror.Middleware(h.List))
 			users.PUT("", apperror.Middleware(h.Update))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
 		}
@@ -115,6 +116,22 @@ func (h *handler) Read(c *gin.Context) error {
 		}
 	}
 	c.JSON(http.StatusOK, user)
+	return nil
+}
+
+func (h *handler) List(c *gin.Context) error {
+	var filters Filter
+	var listers Pagination
+	err := c.ShouldBindJSON(&filters)
+	if err != nil {
+		return err
+	}
+
+	listers, err = h.repository.List(filters)
+	if err != nil {
+		return apperror.NewAppError(nil, "list read error", "list read error", "USR-0000009")
+	}
+	c.JSON(http.StatusOK, listers)
 	return nil
 }
 
