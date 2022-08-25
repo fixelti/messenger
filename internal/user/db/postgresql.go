@@ -127,7 +127,47 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 	return *queryUser[0], nil
 }
 
-func (r *repository) List(filter user.Filter) (user.Pagination, error) { return user.Pagination{}, nil }
+func (r *repository) List(filter user.Filter) (user.Pagination, error) {
+	request := `SELECT * FROM users LIMIT $1 OFFSET $2;`
+	var pagination user.Pagination
+	var query []*user.User
+
+	offset := (filter.PageID - 1) * filter.PageSize
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return pagination, err
+	}
+
+	err = pgxscan.Select(context.Background(), r.client, &query, request, filter.PageSize, offset)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return user.Pagination{}, newErr
+		}
+		r.logger.Error(err)
+		return user.Pagination{}, err
+	}
+	pagination.Records = append(pagination.Records, &query)
+	pagination.PageID = filter.PageID
+	pagination.PageSize = filter.PageSize
+	pagination.TotalRecords = int64(len(query))
+	pagination.TotalCount = pagination.TotalRecords / pagination.PageSize
+
+	return pagination, nil
+}
 
 func (r *repository) Update(userToUpdate user.User) (user.User, error) {
 	request := `
