@@ -93,7 +93,7 @@ func (r *repository) Read(userID uint) (user.User, error) {
 }
 
 func (r *repository) ReadByLogin(login string) (user.User, error) {
-	var queryUser []*user.User
+	var queryUser user.User
 
 	request := `SELECT * FROM users WHERE login = $1;`
 
@@ -104,7 +104,7 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 		return user.User{}, err
 	}
 
-	err = pgxscan.Select(context.Background(), r.client, &queryUser, request, login)
+	err = pgxscan.Get(context.Background(), r.client, &queryUser, request, login)
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		var pgErr *pgconn.PgError
@@ -125,7 +125,7 @@ func (r *repository) ReadByLogin(login string) (user.User, error) {
 		return user.User{}, err
 	}
 	_ = tx.Commit(context.Background())
-	return *queryUser[0], nil
+	return queryUser, nil
 }
 
 func (r *repository) List(filter user.Filter) (user.Pagination, error) {
@@ -184,6 +184,7 @@ func (r *repository) List(filter user.Filter) (user.Pagination, error) {
 		return user.Pagination{}, err
 	}
 
+	_ = tx.Commit(context.Background())
 	pagination.Records = append(pagination.Records, &query)
 	pagination.PageID = filter.PageID
 	pagination.PageSize = filter.PageSize
