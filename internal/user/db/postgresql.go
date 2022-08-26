@@ -7,6 +7,7 @@ import (
 	"github.com/georgysavva/scany/pgxscan"
 	"github.com/jackc/pgconn"
 	"math"
+	"message/internal/middleware"
 	"message/internal/user"
 	"message/pkg/client/postgresql"
 	"message/pkg/logging"
@@ -90,42 +91,6 @@ func (r *repository) Read(userID uint) (user.User, error) {
 	}
 	_ = tx.Commit(context.Background())
 	return queryUser, err
-}
-
-func (r *repository) ReadByLogin(login string) (user.User, error) {
-	var queryUser user.User
-
-	request := `SELECT * FROM users WHERE login = $1;`
-
-	tx, err := r.client.Begin(context.Background())
-	if err != nil {
-		_ = tx.Rollback(context.Background())
-		r.logger.Tracef("can't start transaction: %s", err.Error())
-		return user.User{}, err
-	}
-
-	err = pgxscan.Get(context.Background(), r.client, &queryUser, request, login)
-	if err != nil {
-		_ = tx.Rollback(context.Background())
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			pgErr = err.(*pgconn.PgError)
-			newErr := fmt.Errorf(
-				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
-				pgErr.Message,
-				pgErr.Detail,
-				pgErr.Where,
-				pgErr.Code,
-				pgErr.SQLState(),
-			)
-			r.logger.Error(newErr)
-			return user.User{}, newErr
-		}
-		r.logger.Error(err)
-		return user.User{}, err
-	}
-	_ = tx.Commit(context.Background())
-	return queryUser, nil
 }
 
 func (r *repository) List(filter user.Filter) (user.Pagination, error) {
@@ -263,6 +228,47 @@ func (r *repository) Delete(userId uint) error {
 	}
 	_ = tx.Commit(context.Background())
 	return nil
+}
+
+func (r *repository) FindByLogin(login string, role uint) ([]*user.User, error) {
+	var queryUser []*user.User
+	var request string
+
+	if role <= middleware.Admin {
+		request = `SELECT * FROM users WHERE login LIKE '%' || $1 || '%';`
+	} else {
+		request = `SELECT * FROM users WHERE login LIKE '%' || $1 || '%' AND find_vision = true;`
+	}
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return nil, err
+	}
+
+	err = pgxscan.Select(context.Background(), r.client, &queryUser, request, login)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return nil, newErr
+		}
+		r.logger.Error(err)
+		return nil, err
+	}
+	_ = tx.Commit(context.Background())
+	return queryUser, nil
 }
 
 func NewRepository(client postgresql.Client, logger *logging.Logger) user.Repository {
