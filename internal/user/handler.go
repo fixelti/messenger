@@ -29,8 +29,7 @@ type IDRequest struct {
 }
 
 type findLoginRequest struct {
-	Login      string `form:"login" binding:"required, min=1"`
-	GlobalFind bool   `form:"global_find" binding:"required"`
+	Login string `form:"login" binding:"required"`
 }
 
 //TODO: Разобраться в этом блоке кода
@@ -211,6 +210,8 @@ func (h *handler) Delete(c *gin.Context) error {
 
 func (h *handler) FindByLogin(c *gin.Context) error {
 	var login findLoginRequest
+	var users []*User
+	var err error
 	claims := jwt.ExtractClaims(c)
 	userRole := claims[middleware.RoleJWTKey].(float64)
 
@@ -218,8 +219,11 @@ func (h *handler) FindByLogin(c *gin.Context) error {
 		return nil
 	}
 
-	if _, err := h.repository.FindByLogin(login.Login, uint(userRole)); err != nil {
+	users, err = h.repository.FindByLogin(login.Login, uint(userRole))
+	if err != nil {
 		return apperror.NewAppError(nil, "not found", "user not found", "USR-0000010")
 	}
+	
+	c.JSON(http.StatusOK, users)
 	return nil
 }

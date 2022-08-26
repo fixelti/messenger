@@ -230,24 +230,24 @@ func (r *repository) Delete(userId uint) error {
 	return nil
 }
 
-func (r *repository) FindByLogin(login string, role uint) (user.User, error) {
-	var queryUser user.User
+func (r *repository) FindByLogin(login string, role uint) ([]*user.User, error) {
+	var queryUser []*user.User
 	var request string
 
 	if role <= middleware.Admin {
-		request = `SELECT * FROM users WHERE login LIKE $1 AND id ;`
+		request = `SELECT * FROM users WHERE login LIKE '%' || $1 || '%';`
 	} else {
-		request = `SELECT * FROM users WHERE login LIKE $1 AND find_vision = true;`
+		request = `SELECT * FROM users WHERE login LIKE '%' || $1 || '%' AND find_vision = true;`
 	}
 
 	tx, err := r.client.Begin(context.Background())
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		r.logger.Tracef("can't start transaction: %s", err.Error())
-		return user.User{}, err
+		return nil, err
 	}
 
-	err = pgxscan.Get(context.Background(), r.client, &queryUser, request, login)
+	err = pgxscan.Select(context.Background(), r.client, &queryUser, request, login)
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		var pgErr *pgconn.PgError
@@ -262,10 +262,10 @@ func (r *repository) FindByLogin(login string, role uint) (user.User, error) {
 				pgErr.SQLState(),
 			)
 			r.logger.Error(newErr)
-			return user.User{}, newErr
+			return nil, newErr
 		}
 		r.logger.Error(err)
-		return user.User{}, err
+		return nil, err
 	}
 	_ = tx.Commit(context.Background())
 	return queryUser, nil
