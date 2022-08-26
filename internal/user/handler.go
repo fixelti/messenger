@@ -28,6 +28,11 @@ type IDRequest struct {
 	UserID uint `uri:"user_id" binding:"required,min=1"`
 }
 
+type findLoginRequest struct {
+	Login      string `form:"login" binding:"required, min=1"`
+	GlobalFind bool   `form:"global_find" binding:"required"`
+}
+
 //TODO: Разобраться в этом блоке кода
 
 func NewHandler(logger *logging.Logger, repository Repository, client postgresql.Client) handlers.Handler {
@@ -50,6 +55,7 @@ func (h *handler) Register(router *gin.RouterGroup) {
 			users.GET("/:user_id", apperror.Middleware(h.Read))
 			users.PUT("", apperror.Middleware(h.Update))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
+			users.GET("/find", apperror.Middleware(h.FindByLogin))
 			users.Use(h.userMiddleware.AdminMiddleware)
 			{
 				users.GET("", apperror.Middleware(h.List))
@@ -199,6 +205,21 @@ func (h *handler) Delete(c *gin.Context) error {
 
 	} else {
 		return apperror.NewAppError(nil, "not your record", "can't delete user", "URS-0000005")
+	}
+	return nil
+}
+
+func (h *handler) FindByLogin(c *gin.Context) error {
+	var login findLoginRequest
+	claims := jwt.ExtractClaims(c)
+	userRole := claims[middleware.RoleJWTKey].(float64)
+
+	if err := c.ShouldBindQuery(&login); err != nil {
+		return nil
+	}
+
+	if _, err := h.repository.FindByLogin(login.Login, uint(userRole)); err != nil {
+		return apperror.NewAppError(nil, "not found", "user not found", "USR-0000010")
 	}
 	return nil
 }
