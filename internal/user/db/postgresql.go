@@ -271,7 +271,7 @@ func (r *repository) FindByLogin(login string, role uint) ([]*user.User, error) 
 	return queryUser, nil
 }
 
-func (r *repository) AddFriend(userID uint, friendID uint) (bool, error) {
+func (r *repository) AddFriend(userID uint, friendID uint) error {
 	request := `
 			INSERT INTO users_friend
 			(user_id, friend_id)
@@ -282,7 +282,7 @@ func (r *repository) AddFriend(userID uint, friendID uint) (bool, error) {
 	if err != nil {
 		_ = tx.Rollback(context.Background())
 		r.logger.Tracef("can't start transaction: %s", err.Error())
-		return false, err
+		return err
 	}
 
 	_, err = tx.Exec(context.Background(),
@@ -303,13 +303,46 @@ func (r *repository) AddFriend(userID uint, friendID uint) (bool, error) {
 				pgErr.SQLState(),
 			)
 			r.logger.Error(newErr)
-			return false, newErr
+			return newErr
 		}
 		r.logger.Error(err)
-		return false, err
+		return err
 	}
 	_ = tx.Commit(context.Background())
-	return true, nil
+	return nil
+}
+
+func (r *repository) DeleteFriend(userID uint, friendID uint) error {
+	request := `
+			UPDATE users_friend
+			SET deleted_at = current_timestamp,
+			WHERE user_id = $1
+			AND friend_id = $2
+			AND deleted_at IS NULL;`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return err
+	}
+
+	_, err = tx.Exec(context.Background(), request, userID, friendID)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf("SQL Error: %s, Detail: %s, Where %s, Code: %s, SQLState: %s",
+				pgErr.Message, pgErr.Detail, pgErr.Where, pgErr.Code, pgErr.SQLState())
+			r.logger.Error(newErr)
+			return newErr
+		}
+		r.logger.Error(err)
+		return err
+	}
+	_ = tx.Commit(context.Background())
+	return nil
 }
 
 func NewRepository(client postgresql.Client, logger *logging.Logger) user.Repository {

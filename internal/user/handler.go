@@ -1,7 +1,6 @@
 package user
 
 import (
-	"fmt"
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -33,7 +32,7 @@ type findLoginRequest struct {
 	Login string `form:"login" binding:"required"`
 }
 
-type addFriendRequest struct {
+type friendIdRequest struct {
 	FriendID uint `form:"friend_id" binding:"required,min=1"`
 }
 
@@ -56,11 +55,12 @@ func (h *handler) Register(router *gin.RouterGroup) {
 		users.Use(jwtMiddleware.MiddlewareFunc())
 		{
 			users.POST("", apperror.Middleware(h.Create))
-			users.POST("/:friend_id", apperror.Middleware(h.AddFriend))
+			users.POST("/friend_id", apperror.Middleware(h.AddFriend))
 			users.GET("/:user_id", apperror.Middleware(h.Read))
 			users.GET("/find", apperror.Middleware(h.FindByLogin))
 			users.PUT("", apperror.Middleware(h.Update))
 			users.DELETE("/:user_id", apperror.Middleware(h.Delete))
+			users.DELETE("/del_friend", apperror.Middleware(h.DeleteFriend))
 			users.Use(h.userMiddleware.AdminMiddleware)
 			{
 				users.GET("", apperror.Middleware(h.List))
@@ -236,7 +236,7 @@ func (h *handler) FindByLogin(c *gin.Context) error {
 func (h *handler) AddFriend(c *gin.Context) error {
 	claims := jwt.ExtractClaims(c)
 	userID := claims[middleware.IdentityJWTKet].(float64)
-	var data addFriendRequest
+	var data friendIdRequest
 	var user User
 	if err := c.ShouldBindQuery(&data); err != nil {
 		return err
@@ -256,12 +256,31 @@ func (h *handler) AddFriend(c *gin.Context) error {
 		return apperror.NewAppError(nil, "user not found", "user not found", "USR-0000006")
 	}
 
-	fmt.Println(user.AddFriend)
 	if !user.AddFriend {
 		c.JSON(http.StatusForbidden, gin.H{"error": "user has forbidden to add him as a friend"})
 		return nil
 	}
 
+	err = h.repository.AddFriend(uint(userID), data.FriendID)
+	if err != nil {
+		return apperror.NewAppError(nil, "server error", "internal server error", "USR-0000007")
+	}
+
 	c.JSON(http.StatusOK, gin.H{"success": "user added to friend"})
+	return nil
+}
+
+func (h *handler) DeleteFriend(c *gin.Context) error {
+	claims := jwt.ExtractClaims(c)
+	userID := claims[middleware.IdentityJWTKet].(float64)
+	var data friendIdRequest
+	if err := c.ShouldBindQuery(&data); err != nil {
+		return err
+	}
+
+	if err := h.repository.DeleteFriend(uint(userID), data.FriendID); err != nil {
+		return apperror.NewAppError(nil, "internal server error", "can't delete user", "USR-0000004")
+	}
+	c.JSON(http.StatusOK, gin.H{"success": "friend deleted"})
 	return nil
 }
