@@ -25,7 +25,6 @@ type Test struct {
 	SecretWord string     `json:"secret_word"`
 	FindVision bool       `json:"find_vision"`
 	AddFriend  bool       `json:"add_friend"`
-	Friends    []uint     `json:"friends"`
 	UserRole   uint       `json:"user_role"`
 }
 
@@ -102,7 +101,7 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 				return "", jwt.ErrMissingLoginValues
 			}
 
-			var queryUser []*Test
+			var queryUser Test
 
 			request := `SELECT * FROM users WHERE login = $1;`
 
@@ -113,7 +112,8 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 				return nil, err
 			}
 
-			err = pgxscan.Select(context.Background(), u.Client, &queryUser, request, credentials.Login)
+			err = pgxscan.Get(context.Background(), u.Client, &queryUser, request, credentials.Login)
+
 			if err != nil {
 				_ = tx.Rollback(context.Background())
 				var pgErr *pgconn.PgError
@@ -135,11 +135,11 @@ func (u *UserMiddleware) JwtMiddleware() *jwt.GinJWTMiddleware {
 			}
 			_ = tx.Commit(context.Background())
 
-			err = bcrypt.CompareHashAndPassword([]byte(queryUser[0].Password), []byte(credentials.Password))
+			err = bcrypt.CompareHashAndPassword([]byte(queryUser.Password), []byte(credentials.Password))
 			if err != nil {
 				return "", jwt.ErrFailedAuthentication
 			}
-			return *queryUser[0], nil
+			return queryUser, nil
 		},
 
 		Authorizator: func(data interface{}, c *gin.Context) bool {
