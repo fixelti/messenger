@@ -271,6 +271,47 @@ func (r *repository) FindByLogin(login string, role uint) ([]*user.User, error) 
 	return queryUser, nil
 }
 
+func (r *repository) AddFriend(userID uint, friendID uint) (bool, error) {
+	request := `
+			INSERT INTO users_friend
+			(user_id, friend_id)
+			VALUES ($1, $2)
+			RETURNING id;`
+
+	tx, err := r.client.Begin(context.Background())
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		r.logger.Tracef("can't start transaction: %s", err.Error())
+		return false, err
+	}
+
+	_, err = tx.Exec(context.Background(),
+		request,
+		userID,
+		friendID)
+	if err != nil {
+		_ = tx.Rollback(context.Background())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			pgErr = err.(*pgconn.PgError)
+			newErr := fmt.Errorf(
+				"SQL Error: %s, Detail: %s, Where: %s, Code: %s, SQLState: %s",
+				pgErr.Message,
+				pgErr.Detail,
+				pgErr.Where,
+				pgErr.Code,
+				pgErr.SQLState(),
+			)
+			r.logger.Error(newErr)
+			return false, newErr
+		}
+		r.logger.Error(err)
+		return false, err
+	}
+	_ = tx.Commit(context.Background())
+	return true, nil
+}
+
 func NewRepository(client postgresql.Client, logger *logging.Logger) user.Repository {
 	return &repository{
 		client: client,

@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS users
     secret_word varchar(100),
     find_vision boolean DEFAULT false,
     add_friend boolean DEFAULT false,
-    friends integer[],
     user_role integer
 );
 
@@ -20,6 +19,15 @@ CREATE TABLE IF NOT EXISTS users_banned
     deleted_at timestamp,
     user_id serial,
     banned_user_id serial
+);
+
+CREATE TABLE IF NOT EXISTS users_friend
+    (
+        id serial primary key,
+        created_at timestamp DEFAULT current_timestamp,
+        deleted_at timestamp,
+        user_id serial,
+        friend_id serial
 );
 
 INSERT INTO users(id, email, login, password, secret_word, find_vision, add_friend, friends, user_role)

@@ -32,6 +32,11 @@ type findLoginRequest struct {
 	Login string `form:"login" binding:"required"`
 }
 
+type addFriendRequest struct {
+	userID   uint `form:"user_id" binding:"required,min=1"`
+	friendID uint `form:"friend_id" binding:"required,min=1"`
+}
+
 //TODO: Разобраться в этом блоке кода
 
 func NewHandler(logger *logging.Logger, repository Repository, client postgresql.Client) handlers.Handler {
@@ -223,7 +228,36 @@ func (h *handler) FindByLogin(c *gin.Context) error {
 	if err != nil {
 		return apperror.NewAppError(nil, "not found", "user not found", "USR-0000010")
 	}
-	
+
 	c.JSON(http.StatusOK, users)
+	return nil
+}
+
+func (h *handler) AddFriend(c *gin.Context) error {
+	var data addFriendRequest
+	var user User
+	if err := c.ShouldBindQuery(&data); err != nil {
+		return err
+	}
+
+	banned, err := h.checkBannedUser.CheckingBannedUser(data.userID, data.friendID)
+	if err != nil {
+		return apperror.NewAppError(nil, "server error", "internal server error", "USR-0000007")
+	}
+	if !banned {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you are banned from this user"})
+		return nil
+	}
+
+	user, err = h.repository.Read(data.userID)
+	if err != nil {
+		return apperror.NewAppError(nil, "user not found", "user not found", "USR-0000006")
+	}
+	if !user.AddFriend {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user has forbidden to add him as a friend"})
+		return nil
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": "user added to friend"})
 	return nil
 }
